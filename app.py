@@ -12,35 +12,38 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Configs
 app.config['UPLOAD_FOLDER'] = 'knowledgebase_files'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
-# Embedding model from sentence-transformers
+# Load SentenceTransformer model once
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
-# Global in-memory vector store: {"texts": list[str], "embeddings": np.ndarray or None}
+# Vector store: texts and their embeddings
 vector_store = {"texts": [], "embeddings": None}
-
-# Persistent vector store filename
 VECTOR_STORE_PATH = "vector_store.pkl"
 
-# Perplexity API config from .env
+# Perplexity API config
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 
 
 def call_perplexity_api(messages):
+    if PERPLEXITY_API_KEY is None:
+        return "Perplexity API key not set."
+
     headers = {
         "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     payload = {
         "model": "sonar-pro",
         "messages": messages,
         "temperature": 0.2,
         "max_tokens": 1500,
-        "stream": False
+        "stream": False,
     }
     response = requests.post(PERPLEXITY_API_URL, headers=headers, json=payload)
     if response.status_code == 200:
@@ -51,7 +54,7 @@ def call_perplexity_api(messages):
 
 
 def chunk_text(text, max_chunk_size=300):
-    """Split large text into chunks containing max_chunk_size words."""
+    """Split text into chunks with max_chunk_size words."""
     words = text.split()
     chunks = []
     for i in range(0, len(words), max_chunk_size):
@@ -68,24 +71,21 @@ def save_vector_store(store):
 def load_vector_store():
     if os.path.exists(VECTOR_STORE_PATH):
         with open(VECTOR_STORE_PATH, "rb") as f:
-            store = pickle.load(f)
-        return store
-    else:
-        return {"texts": [], "embeddings": None}
+            return pickle.load(f)
+    return {"texts": [], "embeddings": None}
 
 
 def index_all_files():
-    """Read text files from upload folder, chunk, embed, and save vector store."""
+    """Read text files, chunk, embed, and save vector store."""
     text_chunks = []
     for filename in os.listdir(app.config['UPLOAD_FOLDER']):
         if not filename.lower().endswith(('.txt', '.md')):
-            continue  # skip unsupported formats currently
-        path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            continue
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
-            chunks = chunk_text(text)
-            text_chunks.extend(chunks)
+            text_chunks.extend(chunk_text(text))
         except Exception as e:
             print(f"Error reading file {filename}: {e}")
 
@@ -95,25 +95,22 @@ def index_all_files():
     embeddings = embedding_model.encode(text_chunks, show_progress_bar=False)
     embeddings = np.array(embeddings)
 
-    store = {
-        "texts": text_chunks,
-        "embeddings": embeddings
-    }
+    store = {"texts": text_chunks, "embeddings": embeddings}
     save_vector_store(store)
     return store
 
 
 def search_knowledge_base(query, top_k=3, similarity_threshold=0.7):
-    """Return top_k relevant text chunks with cosine similarity above threshold."""
     global vector_store
-    if not vector_store or not vector_store["texts"]:
+    # Load vector store if empty
+    if not vector_store.get("texts"):
         vector_store_local = load_vector_store()
         if vector_store_local:
             vector_store.update(vector_store_local)
         else:
             return []
 
-    if vector_store["embeddings"] is None or len(vector_store["texts"]) == 0:
+    if vector_store["embeddings"] is None or not vector_store["texts"]:
         return []
 
     query_embedding = embedding_model.encode([query])[0]
@@ -128,7 +125,7 @@ def search_knowledge_base(query, top_k=3, similarity_threshold=0.7):
     results = []
     for idx in ranked_indices:
         if similarities[idx] < similarity_threshold:
-            continue  # skip low similarity chunks
+            continue
         if idx < len(vector_store["texts"]):
             results.append(vector_store["texts"][idx])
         if len(results) >= top_k:
@@ -136,32 +133,34 @@ def search_knowledge_base(query, top_k=3, similarity_threshold=0.7):
     return results
 
 
-@app.route('/')
-@app.route('/ai_chat')
+@app.route("/")
+@app.route("/ai_chat")
 def ai_chat():
     return render_template('ai_chat.html', active='ai_chat')
 
 
-@app.route('/education')
+@app.route("/education")
 def education():
     return render_template('education.html', active='education')
 
 
-@app.route('/admin')
+@app.route("/admin")
 def admin():
     return render_template('admin.html', active='admin')
 
 
-@app.route('/sources')
+@app.route("/sources")
 def sources():
     return render_template('sources.html', active='sources')
 
 
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
-    user_message = request.json.get("message", "").strip()
-    if not user_message:
+    json_data = request.get_json(silent=True) or {}
+    user_message = json_data.get("message", "")
+    if user_message is None or user_message.strip() == "":
         return jsonify({"response": "Please enter a valid question."})
+    user_message = user_message.strip()
 
     relevant_docs = search_knowledge_base(user_message, top_k=3)
 
@@ -194,14 +193,15 @@ def api_chat():
     return jsonify({"response": answer})
 
 
-@app.route('/api/education/generate', methods=['POST'])
+@app.route("/api/education/generate", methods=['POST'])
 def generate_education():
-    data = request.get_json()
-    text = data.get("text", "").strip()
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "")
     difficulty = data.get("difficulty", "easy")
 
-    if not text:
+    if text is None or text.strip() == "":
         return jsonify({"flashcards": [], "mcqs": []})
+    text = text.strip()
 
     system_prompt = {
         "role": "system",
@@ -238,28 +238,27 @@ def generate_education():
     return jsonify({"flashcards": flashcards, "mcqs": mcqs})
 
 
-@app.route('/api/upload', methods=['POST'])
+@app.route("/api/upload", methods=["POST"])
 def api_upload():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in request"}), 400
     file = request.files['file']
-    if not file or file.filename == '':
+    if file is None or file.filename is None or file.filename.strip() == '':
         return jsonify({"error": "No selected file"}), 400
 
     filename = secure_filename(file.filename)
     save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(save_path)
 
-    # Rebuild vector index after upload
     global vector_store
     vector_store = index_all_files()
 
     return jsonify({"success": True, "filename": filename})
 
 
-@app.route('/api/delete_file', methods=['POST'])
+@app.route("/api/delete_file", methods=["POST"])
 def api_delete_file():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     filename = data.get("filename", "")
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
@@ -268,7 +267,6 @@ def api_delete_file():
     if os.path.exists(file_path):
         os.remove(file_path)
 
-        # Rebuild vector index after deletion
         global vector_store
         vector_store = index_all_files()
 
@@ -277,7 +275,7 @@ def api_delete_file():
         return jsonify({"error": "File not found"}), 404
 
 
-@app.route('/api/files', methods=['GET'])
+@app.route("/api/files", methods=['GET'])
 def api_files():
     try:
         files = os.listdir(app.config['UPLOAD_FOLDER'])
@@ -287,7 +285,7 @@ def api_files():
 
 
 if __name__ == '__main__':
-    # Load vector store on startup if exists
     vector_store = load_vector_store()
 
-    app.run(debug=True, port=5000)
+    # Run on all interfaces, port 5000 (good for local network testing)
+    app.run(debug=True, host='0.0.0.0', port=5000)
