@@ -17,11 +17,11 @@ app.config['UPLOAD_FOLDER'] = 'knowledgebase_files'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
-# Load SentenceTransformer model once
+# Load embedding model once
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
-# Vector store: texts and their embeddings
+# In-memory vector store
 vector_store = {"texts": [], "embeddings": None}
 VECTOR_STORE_PATH = "vector_store.pkl"
 
@@ -115,7 +115,7 @@ def search_knowledge_base(query, top_k=3, similarity_threshold=0.7):
 
     query_embedding = embedding_model.encode([query])[0]
 
-    # Normalize embeddings
+    # Normalize embeddings for cosine similarity
     query_norm = query_embedding / np.linalg.norm(query_embedding)
     embeddings_norm = vector_store["embeddings"] / np.linalg.norm(vector_store["embeddings"], axis=1, keepdims=True)
 
@@ -193,13 +193,13 @@ def api_chat():
     return jsonify({"response": answer})
 
 
-@app.route("/api/education/generate", methods=['POST'])
+@app.route('/api/education/generate', methods=['POST'])
 def generate_education():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "")
     difficulty = data.get("difficulty", "easy")
 
-    if text is None or text.strip() == "":
+    if not text or text.strip() == "":
         return jsonify({"flashcards": [], "mcqs": []})
     text = text.strip()
 
@@ -220,11 +220,55 @@ def generate_education():
     messages = [system_prompt, user_prompt]
     result_text = call_perplexity_api(messages)
 
+    flashcards = []
+    mcqs = []
+
     try:
         result_json = json.loads(result_text)
-        flashcards = result_json.get("flashcards", [])
-        mcqs = result_json.get("mcqs", [])
-    except Exception:
+
+        # Validate flashcards  
+        raw_flashcards = result_json.get("flashcards", [])
+        for fc in raw_flashcards:
+            if (
+                isinstance(fc, dict) and 
+                isinstance(fc.get("question"), str) and 
+                isinstance(fc.get("answer"), str)
+            ):
+                flashcards.append({
+                    "question": fc["question"].strip(),
+                    "answer": fc["answer"].strip()
+                })
+
+        # Validate MCQs  
+        raw_mcqs = result_json.get("mcqs", [])
+        for mcq in raw_mcqs:
+            q = mcq.get("question")
+            opts = mcq.get("options")
+            corr = mcq.get("correct")
+
+            if (
+                isinstance(q, str) and q.strip() != "" and
+                isinstance(opts, list) and len(opts) == 4 and
+                all(isinstance(opt, str) for opt in opts) and
+                isinstance(corr, str) and corr.strip() in opts
+            ):
+                mcqs.append({
+                    "question": q.strip(),
+                    "options": [opt.strip() for opt in opts],
+                    "correct": corr.strip()
+                })
+            else:
+                # Skip malformed MCQs
+                pass
+
+        if not mcqs:
+            mcqs = [{
+                "question": "What is the main topic of the text?",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correct": "Option A"
+            }]
+
+    except json.JSONDecodeError:
         flashcards = [{
             "question": f"Summarize the text at {difficulty} difficulty.",
             "answer": text[:400] + ("..." if len(text) > 400 else "")
@@ -285,7 +329,7 @@ def api_files():
 
 
 if __name__ == '__main__':
+    # Load vector store on startup
     vector_store = load_vector_store()
 
-    # Run on all interfaces, port 5000 (good for local network testing)
     app.run(debug=True, host='0.0.0.0', port=5000)
