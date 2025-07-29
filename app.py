@@ -201,15 +201,19 @@ def generate_education():
 
     if not text or text.strip() == "":
         return jsonify({"flashcards": [], "mcqs": []})
+
     text = text.strip()
 
     system_prompt = {
         "role": "system",
         "content": (
-            "You are an expert medical educator. Generate a list of flashcards and multiple choice questions (MCQs) "
-            "based only on the provided text. For flashcards provide question and answer. For MCQs provide question, "
-            "four options, and the correct answer. Make questions human-like, clear, relevant, and appropriate for the difficulty level "
-            "(easy, medium, hard). Format response as JSON with keys 'flashcards' and 'mcqs'."
+            "You are an expert medical educator. Based solely on the provided text, "
+            "generate a list of flashcards and multiple choice questions (MCQs). For MCQs, "
+            "each question must have four distinct answer options and exactly one correct answer "
+            "that is factually correct, accurate, and explicitly supported by the text. "
+            "Ensure questions are clear, focused, and at the specified difficulty level (easy, medium, hard). "
+            "Format the response as JSON with keys 'flashcards' and 'mcqs'. Each flashcard should have 'question' and 'answer'. "
+            "Each MCQ should include 'question', 'options' (list of 4 strings), and 'correct' (one of the options)."
         )
     }
     user_prompt = {
@@ -239,17 +243,19 @@ def generate_education():
                     "answer": fc["answer"].strip()
                 })
 
-        # Validate MCQs  
+        # Validate MCQs with stricter checks
         raw_mcqs = result_json.get("mcqs", [])
         for mcq in raw_mcqs:
             q = mcq.get("question")
             opts = mcq.get("options")
             corr = mcq.get("correct")
 
+            # Ensure distinct options, correct answer matches an option
             if (
                 isinstance(q, str) and q.strip() != "" and
                 isinstance(opts, list) and len(opts) == 4 and
-                all(isinstance(opt, str) for opt in opts) and
+                len(set(opts)) == 4 and 
+                all(isinstance(opt, str) and opt.strip() != "" for opt in opts) and
                 isinstance(corr, str) and corr.strip() in opts
             ):
                 mcqs.append({
@@ -258,26 +264,15 @@ def generate_education():
                     "correct": corr.strip()
                 })
             else:
-                # Skip malformed MCQs
+                # Skip invalid MCQs
                 pass
-
-        if not mcqs:
-            mcqs = [{
-                "question": "What is the main topic of the text?",
-                "options": ["Option A", "Option B", "Option C", "Option D"],
-                "correct": "Option A"
-            }]
 
     except json.JSONDecodeError:
         flashcards = [{
             "question": f"Summarize the text at {difficulty} difficulty.",
             "answer": text[:400] + ("..." if len(text) > 400 else "")
         }]
-        mcqs = [{
-            "question": "What is the main topic of the text?",
-            "options": ["Option A", "Option B", "Option C", "Option D"],
-            "correct": "Option A"
-        }]
+        mcqs = []
 
     return jsonify({"flashcards": flashcards, "mcqs": mcqs})
 
