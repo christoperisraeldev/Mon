@@ -80,9 +80,6 @@ supafunc==0.9.4
 sympy==1.13.3
 threadpoolctl==3.6.0
 tokenizers==0.21.4
-torch==2.7.1+cpu
-torchaudio==2.7.1+cpu
-torchvision==0.22.1+cpu
 tqdm==4.67.1
 transformers==4.54.0
 typing-inspection==0.4.0
