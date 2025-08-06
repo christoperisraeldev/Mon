@@ -1,88 +1,122 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Admin - Manage Knowledgebase Files</h2>
+<div style="max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 3rem 1rem; box-sizing: border-box;">
 
-<div style="margin-bottom: 1.25rem;">
-  <input type="file" id="file-upload" aria-label="Upload knowledgebase file" />
-  <button id="upload-file-btn" aria-label="Upload file">Upload File</button>
-</div>
+  <h2>Admin - Manage Knowledgebase Files</h2>
 
-<h3>Uploaded Files:</h3>
-<ul id="files-list" aria-live="polite" aria-atomic="false"></ul>
+  <div style="margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem;">
+    <input type="file" id="file-upload" aria-label="Upload knowledgebase file" class="styled-input" />
+    <button id="upload-file-btn" class="styled-btn">Upload File</button>
+  </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const fileUpload = document.getElementById("file-upload");
-  const uploadBtn = document.getElementById("upload-file-btn");
-  const filesList = document.getElementById("files-list");
+  <h3>Uploaded Files:</h3>
+  <ul id="files-list" aria-live="polite" aria-atomic="false"></ul>
 
-  async function fetchFiles() {
-    try {
-      const res = await fetch("/api/files");
-      const data = await res.json();
-      filesList.innerHTML = "";
-      data.files.forEach((file) => {
-        const li = document.createElement("li");
-        li.textContent = file;
-        const delBtn = document.createElement("button");
-        delBtn.textContent = "Delete";
-        delBtn.setAttribute("aria-label", "Delete " + file);
-        delBtn.addEventListener("click", () => deleteFile(file));
-        li.appendChild(delBtn);
-        filesList.appendChild(li);
-      });
-    } catch {
-      filesList.innerHTML = '<span style="color:red;">Failed to load files.</span>';
+  <style>
+    .styled-btn {
+      padding: 0.5rem 1.1rem; border-radius: 8px;
+      background-color: #2563eb; color: #fff; font-weight: 600; border: none;
+      cursor: pointer; box-shadow: 0 3px 6px rgba(37, 99, 235, 0.5);
+      transition: background .2s;
     }
-  }
+    .styled-btn:hover { background: #1e40af; }
+    .styled-input {
+      padding: 0.3rem 0.4rem; border-radius: 7px; border: 1px solid #ccc; font-size: 1rem;
+    }
+    #files-list li {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 0.6rem; gap: 1rem;
+    }
+    #files-list button {
+      font-size: 0.85rem;
+      padding: 0.23rem 0.7rem;
+      border-radius: 6px;
+      background-color: #ef4444;
+      color: white; border: none; cursor: pointer; font-weight: 600;
+      box-shadow: none; transition: background 0.2s;
+    }
+    #files-list button:hover { background-color: #b91c1c; }
+  </style>
 
-  async function deleteFile(filename) {
-    if (!confirm(`Delete file "${filename}"?`)) return;
-    try {
-      const res = await fetch("/api/delete_file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("File deleted.");
-        fetchFiles();
-      } else {
-        alert(data.error || "Error deleting file.");
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const fileUpload = document.getElementById("file-upload");
+    const uploadBtn = document.getElementById("upload-file-btn");
+    const filesList = document.getElementById("files-list");
+
+    async function fetchFiles() {
+      try {
+        const res = await fetch("/api/files");
+        if (!res.ok) throw new Error("Failed to load files");
+        const data = await res.json();
+        filesList.innerHTML = "";
+        if (data.files && data.files.length) {
+          data.files.forEach((file) => {
+            const li = document.createElement("li");
+            li.textContent = file;
+            const delBtn = document.createElement("button");
+            delBtn.textContent = "Delete";
+            delBtn.setAttribute("aria-label", "Delete " + file);
+            delBtn.addEventListener("click", () => deleteFile(file));
+            li.appendChild(delBtn);
+            filesList.appendChild(li);
+          });
+        } else {
+          filesList.innerHTML = "<li>No files found.</li>";
+        }
+      } catch (e) {
+        filesList.innerHTML = `<span style="color:red;">Failed to load files: ${e.message}</span>`;
       }
-    } catch {
-      alert("Delete request failed.");
     }
-  }
 
-  uploadBtn.addEventListener("click", async () => {
-    if (!fileUpload.files.length) {
-      alert("Please select a file to upload.");
-      return;
-    }
-    const file = fileUpload.files[0];
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("File uploaded.");
-        fileUpload.value = "";
-        fetchFiles();
-      } else {
-        alert(data.error || "File upload failed.");
+    async function deleteFile(filename) {
+      if (!confirm(`Delete file "${filename}"?`)) return;
+      try {
+        const res = await fetch("/api/delete_file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("File deleted.");
+          fetchFiles();
+        } else {
+          alert(data.error || "Error deleting file.");
+        }
+      } catch {
+        alert("Delete request failed.");
       }
-    } catch {
-      alert("File upload failed.");
     }
+
+    uploadBtn.addEventListener("click", async () => {
+      if (!fileUpload.files.length) {
+        alert("Please select a file to upload.");
+        return;
+      }
+      const file = fileUpload.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert("File uploaded.");
+          fileUpload.value = "";
+          fetchFiles();
+        } else {
+          alert(data.error || "File upload failed.");
+        }
+      } catch {
+        alert("File upload failed.");
+      }
+    });
+
+    fetchFiles();
   });
-
-  fetchFiles();
-});
-</script>
+  </script>
+</div>
 {% endblock %}

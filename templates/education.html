@@ -1,100 +1,174 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Education - Generate Flashcards and MCQs</h2>
+<div style="max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 3rem 1rem; box-sizing: border-box;">
 
-<textarea id="education-text" placeholder="Paste text here or upload file" aria-label="Education text input" spellcheck="true"></textarea>
+  <h2>Education - Generate Flashcards and MCQs</h2>
 
-<div style="margin: 1rem 0;">
-  <label for="difficulty" style="font-weight:600; margin-right: 0.5rem;">Difficulty:</label>
-  <select id="difficulty" aria-label="Select question difficulty">
-    <option value="easy">Easy</option>
-    <option value="medium">Medium</option>
-    <option value="hard">Hard</option>
-  </select>
-</div>
+  <textarea id="education-text" placeholder="Paste text here or upload file" aria-label="Education text input" spellcheck="true" rows="6"
+    style="width: 100%; padding: 0.5rem; font-family: inherit; font-size: 1rem; border-radius: 8px; border: 1px solid #ccc; resize: vertical;">
+  </textarea>
 
-<button id="generate-edu" aria-label="Generate flashcards and MCQs">Generate</button>
+  <div style="margin: 1rem 0;">
+    <label for="difficulty" style="font-weight:600; margin-right: 0.5rem;">Difficulty:</label>
+    <select id="difficulty" aria-label="Select question difficulty"
+      style="font-size: 1rem; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #ccc;">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+  </div>
 
-<div id="education-output" style="max-height: 440px; margin-top: 1.5rem; overflow-y: auto;"></div>
+  <button id="generate-edu" style="padding: 0.5rem 1.1rem; background-color: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+    Generate
+  </button>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const generateBtn = document.getElementById("generate-edu");
-  const inputText = document.getElementById("education-text");
-  const difficultySel = document.getElementById("difficulty");
-  const output = document.getElementById("education-output");
+  <!-- Checkbox to toggle flashcard answer visibility and allow typed answers -->
+  <div style="margin-top: 1rem;">
+    <input type="checkbox" id="hide-flashcard-answer" />
+    <label for="hide-flashcard-answer" style="user-select:none; cursor:pointer;">Hide flashcard answers and enable typing your answer</label>
+  </div>
 
-  generateBtn.addEventListener("click", async () => {
-    const text = inputText.value.trim();
-    if (!text) {
-      alert("Please enter text to generate questions.");
-      return;
-    }
+  <div id="education-output" style="max-height: 440px; margin-top: 1.5rem; overflow-y: auto;"></div>
 
-    output.innerHTML = "<em>Generating...</em>";
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const generateBtn = document.getElementById("generate-edu");
+      const inputText = document.getElementById("education-text");
+      const difficultySel = document.getElementById("difficulty");
+      const output = document.getElementById("education-output");
+      const hideFlashcardAnswerCheckbox = document.getElementById("hide-flashcard-answer");
 
-    try {
-      const res = await fetch("/api/education/generate", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({text, difficulty: difficultySel.value})
-      });
-      const data = await res.json();
+      generateBtn.addEventListener("click", async () => {
+        const text = inputText.value.trim();
+        if (!text) {
+          alert("Please enter text to generate questions.");
+          return;
+        }
 
-      let html = "<h3>Flashcards</h3>";
-      data.flashcards.forEach(fc => {
-        html += `<p><strong>Q:</strong> ${fc.question}<br /><strong>A:</strong> ${fc.answer}</p>`;
-      });
+        output.innerHTML = "<em>Generating...</em>";
 
-      html += `<h3>MCQs</h3>`;
-      data.mcqs.forEach((mcq, i) => {
-        html += `<div class="mcq" data-index="${i}" style="margin-bottom: 1.5rem;">
-          <p><strong>Q:</strong> ${mcq.question}</p>`;
-        mcq.options.forEach((opt, idx) => {
-          html += `
-            <label>
-              <input type="radio" name="mcq-${i}" value="${opt}" />
-              ${opt}
-            </label><br>`;
-        });
-        html += `<button class="check-answer-btn" data-index="${i}" style="margin-top: 0.5rem;">Check Answer</button>`;
-        html += `<p class="mcq-feedback" style="margin-top:0.5rem; font-weight: 600;"></p></div>`;
-      });
+        try {
+          const res = await fetch("/api/education/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, difficulty: difficultySel.value })
+          });
 
-      output.innerHTML = html;
+          if (!res.ok) throw new Error("Failed to generate");
+          let data = await res.json();
 
-      // Add event listeners for "Check Answer" buttons
-      document.querySelectorAll(".check-answer-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const idx = btn.getAttribute("data-index");
-          const mcqDiv = output.querySelector(`.mcq[data-index="${idx}"]`);
-          const selected = mcqDiv.querySelector(`input[name="mcq-${idx}"]:checked`);
-          const feedback = mcqDiv.querySelector(".mcq-feedback");
-          if (!selected) {
-            alert("Please select an answer before checking.");
+          if (!Array.isArray(data.flashcards) || !Array.isArray(data.mcqs)) {
+            output.innerHTML = '<span style="color:red;">No flashcards/MCQs found in response.</span>';
             return;
           }
-          const userAnswer = selected.value;
-          const correctAnswer = data.mcqs[idx].correct;
 
-          if (userAnswer === correctAnswer) {
-            feedback.style.color = "green";
-            feedback.textContent = "Correct! 🎉";
-          } else {
-            feedback.style.color = "red";
-            feedback.textContent = `Incorrect. The correct answer is: ${correctAnswer}`;
+          // Render Flashcards
+          let html = "<h3>Flashcards</h3>";
+          const hideAnswer = hideFlashcardAnswerCheckbox.checked;
+          data.flashcards.forEach((fc, i) => {
+            html += `<p><strong>Q${i + 1}:</strong> ${fc.question}<br />`;
+            if (hideAnswer) {
+              html += `
+                <label for="flashcard-answer-${i}" style="font-weight:600;">Your Answer:</label>
+                <input type="text" id="flashcard-answer-${i}" data-correct='${fc.answer.replace(/'/g, "&apos;")}' style="margin-left: 0.5rem;" autocomplete="off" />
+                <button class="flashcard-check-btn" data-index="${i}" style="margin-left: 0.75rem;">Check</button>
+                <span class="flashcard-feedback" id="flashcard-feedback-${i}" style="margin-left: 0.5rem; font-weight: 600;"></span>
+              `;
+            } else {
+              html += `<strong>A:</strong> ${fc.answer}`;
+            }
+            html += `</p>`;
+          });
+
+          // Render MCQs
+          html += `<h3>MCQs</h3>`;
+          data.mcqs.forEach((mcq, i) => {
+            html += `<div class="mcq" data-index="${i}" style="margin-bottom: 1.5rem;">
+              <p><strong>Q${i + 1}:</strong> ${mcq.question}</p>`;
+            mcq.options.forEach(opt => {
+              html += `
+                <label>
+                  <input type="radio" name="mcq-${i}" value="${opt}" />
+                  ${opt}
+                </label><br>`;
+            });
+            html += `<button class="check-answer-btn" data-index="${i}" style="margin-top: 0.5rem;">Check Answer</button>`;
+            html += `<p class="mcq-feedback" style="margin-top:0.5rem; font-weight: 600;"></p></div>`;
+          });
+
+          output.innerHTML = html;
+
+          // Flashcard answer checking
+          if (hideAnswer) {
+            document.querySelectorAll(".flashcard-check-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const i = btn.getAttribute("data-index");
+                const input = document.getElementById(`flashcard-answer-${i}`);
+                const feedback = document.getElementById(`flashcard-feedback-${i}`);
+                const userVal = input.value.trim().toLowerCase();
+                const correctVal = input.getAttribute("data-correct").trim().toLowerCase();
+
+                if (!userVal) {
+                  alert("Please enter your answer before checking.");
+                  return;
+                }
+                if (userVal === correctVal) {
+                  feedback.style.color = "green";
+                  feedback.textContent = "Correct! 🎉";
+                } else {
+                  feedback.style.color = "red";
+                  feedback.textContent = `Wrong. Correct answer: ${input.getAttribute("data-correct")}`;
+                }
+                input.disabled = true;
+                btn.disabled = true;
+              });
+            });
           }
 
-          // Disable inputs and button after checking
-          mcqDiv.querySelectorAll("input").forEach(input => input.disabled = true);
-          btn.disabled = true;
-        });
+          // MCQ answer checking
+          document.querySelectorAll(".check-answer-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+              const idx = btn.getAttribute("data-index");
+              const mcqDiv = output.querySelector(`.mcq[data-index="${idx}"]`);
+              const selected = mcqDiv.querySelector(`input[name="mcq-${idx}"]:checked`);
+              const feedback = mcqDiv.querySelector(".mcq-feedback");
+              if (!selected) {
+                alert("Please select an answer before checking.");
+                return;
+              }
+              const userAnswer = selected.value.trim();
+              const mcq = data.mcqs[idx];
+              const correctAnswer = mcq.correct || mcq.answer || mcq.correctAnswer || "";
+
+              if (!correctAnswer) {
+                feedback.style.color = "red";
+                feedback.textContent = "No correct answer provided.";
+                return;
+              }
+
+              if (userAnswer.toLowerCase() === correctAnswer.toLowerCase()) {
+                feedback.style.color = "green";
+                feedback.textContent = "Correct! 🎉";
+              } else {
+                feedback.style.color = "red";
+                feedback.textContent = `Incorrect. The correct answer is: ${correctAnswer}`;
+              }
+              mcqDiv.querySelectorAll("input").forEach(input => input.disabled = true);
+              btn.disabled = true;
+            });
+          });
+
+        } catch (e) {
+          output.innerHTML = `<span style="color:red;">Error generating flashcards and MCQs: ${e.message}</span>`;
+        }
       });
 
-    } catch {
-      output.innerHTML = '<span style="color:red;">Error generating flashcards and MCQs.</span>';
-    }
-  });
-});
-</script>
+      // Regenerate flashcards when toggling answer visibility
+      hideFlashcardAnswerCheckbox.addEventListener('change', () => {
+        generateBtn.click();
+      });
+    });
+  </script>
+
+</div>
 {% endblock %}

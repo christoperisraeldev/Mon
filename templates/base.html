@@ -1,387 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mon AI - Medical Assistant</title>
-<style>
-  /* Reset and base */
-  *, *::before, *::after {
-    box-sizing: border-box;
-  }
-  body, html {
-    height: 100%;
-    margin: 0; padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f9fafb;
-    color: #2c3e50;
-    line-height: 1.6;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mon AI - Medical Assistant</title>
 
-  /* Wrapper: side nav + content */
-  .app-wrapper {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
+  <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon" />
 
-  /* Side navigation */
-  nav.side-nav {
-    position: fixed;
-    top: 0; bottom: 0; left: 0;
-    width: 240px;
-    background: #2563eb;
-    display: flex;
-    flex-direction: column;
-    padding-top: 2rem;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.15);
-    z-index: 9999;
-  }
-  nav.side-nav a {
-    color: white;
-    text-decoration: none;
-    padding: 1rem 2rem;
-    font-weight: 600;
-    font-size: 1.1rem;
-    transition: background-color 0.3s ease, border-left 0.3s ease;
-    border-left: 5px solid transparent;
-    user-select: none;
-  }
-  nav.side-nav a.active,
-  nav.side-nav a:hover,
-  nav.side-nav a:focus {
-    background-color: #1e40af;
-    border-left-color: #fbbf24;
-    outline: none;
-  }
-
-  /* Main content */
-  main.content-area {
-    margin-left: 240px;
-    flex-grow: 1;
-    background: white;
-    padding: 2.5rem 3rem;
-    overflow-y: auto;
-  }
-
-  h2 {
-    margin-top: 0;
-    color: #1e3a8a;
-    font-weight: 700;
-    margin-bottom: 1rem;
-    border-bottom: 2px solid #2563eb;
-    padding-bottom: 0.3rem;
-  }
-
-  /* Button styles */
-  button {
-    background: #2563eb;
-    color: white;
-    border: none;
-    padding: 0.6rem 1.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border-radius: 8px;
-    cursor: pointer;
-    user-select: none;
-    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  }
-  button:hover, button:focus {
-    background-color: #1e40af;
-    box-shadow: 0 6px 14px rgba(30, 64, 175, 0.65);
-    outline: none;
-  }
-  button:disabled,
-  button[disabled] {
-    background: #94a3b8;
-    cursor: not-allowed;
-    box-shadow: none;
-    color: #e2e8f0;
-  }
-
-  /* Inputs, selects, textareas */
-  input[type="file"],
-  input[type="text"],
-  select,
-  textarea {
-    width: 100%;
-    padding: 0.65rem 1rem;
-    font-size: 1rem;
-    font-family: inherit;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 8px;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    outline: none;
-  }
-  input[type="file"] {
-    width: auto;
-    padding: 0.3rem 0.8rem;
-  }
-  input[type="radio"] {
-    cursor: pointer;
-    margin-right: 10px;
-  }
-  select {
-    max-width: 180px;
-    cursor: pointer;
-  }
-  input[type="text"]:focus,
-  textarea:focus,
-  select:focus,
-  input[type="file"]:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 8px rgba(37, 99, 235, 0.7);
-  }
-  textarea {
-    min-height: 140px;
-    resize: vertical;
-  }
-
-  /* Education page cards */
-  #education-output p {
-    background: #fefefe;
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    line-height: 1.5;
-  }
-  #education-output h3 {
-    color: #1e40af;
-    margin-top: 2.5rem;
-    margin-bottom: 1rem;
-  }
-  #education-output label {
-    cursor: pointer;
-    display: block;
-    font-size: 1rem;
-    margin-left: 32px;
-    margin-bottom: 0.5rem;
-    user-select: none;
-  }
-  #education-output input[type="radio"] {
-    position: relative;
-    left: -32px;
-  }
-  #education-output em {
-    color: #6b7280;
-    display: block;
-    margin: 1rem 0;
-    font-style: normal;
-  }
-
-  /* Admin file list */
-  #files-list {
-    list-style: none;
-    padding-left: 0;
-    max-height: 440px;
-    overflow-y: auto;
-  }
-  #files-list li {
-    background: #fff;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 8px;
-    border: 1px solid #cbd5e1;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-    font-size: 1rem;
-  }
-  #files-list li button {
-    background: #ef4444;
-    padding: 0.4rem 1.25rem;
-    font-size: 0.9rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 9px rgba(239, 68, 68, 0.4);
-    border: none;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  }
-  #files-list li button:hover,
-  #files-list li button:focus {
-    background-color: #b91c1c;
-    box-shadow: 0 4px 14px rgba(185, 28, 28, 0.7);
-    outline: none;
-  }
-  #file-upload {
-    max-width: 320px;
-    margin-right: 1rem;
-    vertical-align: middle;
-  }
-  #upload-file-btn {
-    vertical-align: middle;
-  }
-
-  /* Sources list */
-  ul.sources-list {
-    padding-left: 1.5rem;
-  }
-  ul.sources-list li {
-    margin-bottom: 1rem;
-    font-size: 1rem;
-  }
-  ul.sources-list a {
-    color: #2563eb;
-    font-weight: 600;
-    text-decoration: none;
-    transition: color 0.3s ease;
-  }
-  ul.sources-list a:hover,
-  ul.sources-list a:focus {
-    color: #1e40af;
-    text-decoration: underline;
-    outline: none;
-  }
-
-  /* Chat message classes */
-  .user-message {
-    text-align: right;
-    margin: 15px 0;
-    color: #2563eb;
-    font-weight: 700;
-  }
-  .ai-message {
-    text-align: left;
-    margin: 15px 0;
-    color: #344154;
-    font-weight: 500;
-  }
-
-  /* Responsive */
-  @media (max-width: 1024px) {
-    nav.side-nav {
-      width: 70px;
-      padding-top: 1.2rem;
-      font-size: 0;
+  <style>
+    /* Reset and base styles */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9fafb;
+      color: #2c3e50;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
-    nav.side-nav a {
-      padding: 1.3rem 0;
-      font-size: 0;
-      border-left: none;
-      position: relative;
-    }
-    nav.side-nav a::after {
-      content: attr(aria-label);
-      position: absolute;
-      left: 100%;
-      top: 50%;
-      transform: translate(10px, -50%);
-      color: white;
-      background: #2563eb;
+
+    /* Global button styles */
+    button {
+      font-family: inherit;
+      font-size: 1rem;
       font-weight: 600;
-      padding: 0.2rem 0.6rem;
+      color: #fff;
+      background-color: #2563eb;
+      border: none;
       border-radius: 8px;
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-      font-size: 0.85rem;
+      padding: 0.6rem 1.2rem;
+      cursor: pointer;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      box-shadow: 0 3px 7px rgba(37, 99, 235, 0.5);
     }
-    nav.side-nav a:hover::after,
-    nav.side-nav a:focus::after {
-      opacity: 1;
-    }
-    main.content-area {
-      margin-left: 70px;
-    }
-  }
 
-  @media (max-width: 768px) {
-    nav.side-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 56px;
-      flex-direction: row;
-      border-top: 3px solid #2563eb;
-      width: 100%;
-      padding: 0;
+    button:hover,
+    button:focus {
+      background-color: #1e40af;
+      outline: none;
+    }
+
+    /* Small buttons */
+    button.small-btn {
       font-size: 0.85rem;
+      padding: 0.25rem 0.7rem;
+      min-width: 70px;
+      margin-left: 0.75rem;
+      border-radius: 6px;
+      box-shadow: none;
+      background-color: #ef4444; /* red */
+    }
+
+    button.small-btn:hover,
+    button.small-btn:focus {
+      background-color: #b91c1c;
+      outline: none;
+    }
+
+    /* App wrapper layout */
+    .app-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    aside.sidebar {
+      position: sticky;
+      top: 0;
+      width: 260px;
+      background: #1e40af;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      user-select: none;
+      flex-shrink: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+      box-sizing: border-box;
+    }
+
+    nav.side-nav {
+      padding: 1rem 1rem 1rem 1rem;
+      flex-grow: 1;
+      overflow-y: auto;
     }
     nav.side-nav a {
-      flex-grow: 1;
-      flex-basis: 0;
-      font-size: 1rem;
-      padding: 0.9rem 0;
-      border-radius: 0;
-      border-left: none !important;
-      border-bottom: none !important;
-      text-align: center;
-      margin: 0;
+      display: block;
+      padding: 1rem 1.25rem;
       font-weight: 600;
+      font-size: 1.1rem;
+      color: white;
+      text-decoration: none;
+      border-left: 5px solid transparent;
+      transition: background-color 0.3s ease, border-left-color 0.3s ease;
+      white-space: nowrap;
+      user-select: none;
     }
-    nav.side-nav a.active {
-      background-color: #1e40af;
-      border-bottom: 4px solid #fbbf24;
-      border-left: none !important;
+    nav.side-nav a.active,
+    nav.side-nav a:hover,
+    nav.side-nav a:focus {
+      background-color: #2563eb;
+      border-left-color: #fbbf24;
+      outline: none;
     }
-    main.content-area {
-      margin-left: 0;
-      margin-bottom: 56px;
-      padding: 1.5rem 1rem;
-    }
-    .chat-input-container {
-      position: fixed;
-      bottom: 56px;
-      left: 0;
-      right: 0;
-      background: white;
-      padding: 1rem 1.5rem;
-      box-shadow: 0 -3px 10px rgba(0,0,0,0.15);
-      display: flex;
-      gap: 1rem;
-      z-index: 9999;
-    }
-    .chat-input-container textarea {
-      height: 60px;
-    }
-    .chat-button {
-      padding: 0 1.5rem;
-      font-size: 1rem;
-    }
-    .chat-window {
-      max-height: calc(100vh - 56px - 80px - 40px);
-    }
-  }
 
-  /* Chat input styles and auto resize */
-  #chat-input {
-    min-height: 36px;
-    max-height: 140px;
-    overflow-y: hidden;
-    resize: none;
-    border-radius: 8px;
-    border: 1.5px solid #cbd5e1;
-    padding: 0.6rem 1rem;
-    font-family: inherit;
-    font-size: 1rem;
-    flex-grow: 1;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  }
-  #chat-input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 8px rgba(37, 99, 235, 0.7);
-    outline: none;
-  }
-</style>
+    /* Chat sessions history sidebar */
+    section.chat-history {
+      border-top: 1px solid rgba(255,255,255,0.2);
+      padding: 1rem;
+      overflow-y: auto;
+      min-height: 0;
+      max-height: 220px; /* scroll if tall */
+    }
+    section.chat-history h3 {
+      font-weight: 700;
+      font-size: 1.2rem;
+      margin: 0 0 1rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.3);
+    }
+    ul.chat-sessions-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    ul.chat-sessions-list li {
+      padding: 0.55rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+      line-height: 1.2;
+      transition: background-color 0.25s ease;
+      user-select: none;
+    }
+    ul.chat-sessions-list li:hover,
+    ul.chat-sessions-list li.active {
+      background-color: #2563eb;
+    }
+
+    /* Main content area */
+    main.content-area {
+      flex-grow: 1;
+      margin-left: 260px;
+      padding: 2rem 2.5rem;
+      overflow: visible;
+      height: auto;
+      box-sizing: border-box;
+    }
+
+    /* New Chat button */
+    #new-chat-btn {
+      position: fixed;
+      top: 16px;
+      right: 24px;
+      padding: 0.6rem 1.2rem;
+      background-color: #fbbf24;
+      color: #1e40af;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      z-index: 9999;
+      box-shadow: 0 3px 7px rgba(251,191,36,0.65);
+      transition: background-color 0.3s ease;
+    }
+    #new-chat-btn:hover,
+    #new-chat-btn:focus {
+      background-color: #f59e0b;
+      outline: none;
+    }
+  </style>
 </head>
 <body>
-  <div class="app-wrapper">
-    <nav class="side-nav" aria-label="Primary navigation">
-      <a href="{{ url_for('ai_chat') }}" aria-label="AI Chat" class="{{ 'active' if active=='ai_chat' else '' }}">Chat</a>
-      <a href="{{ url_for('education') }}" aria-label="Education" class="{{ 'active' if active=='education' else '' }}">Education</a>
-      <a href="{{ url_for('admin') }}" aria-label="Admin" class="{{ 'active' if active=='admin' else '' }}">Admin</a>
-      <a href="{{ url_for('sources') }}" aria-label="Sources" class="{{ 'active' if active=='sources' else '' }}">Sources</a>
-    </nav>
+  <div class="app-wrapper" role="application">
+    <aside class="sidebar" aria-label="Sidebar with navigation and chat history">
+      <nav class="side-nav" aria-label="Primary navigation">
+        <a href="{{ url_for('ai_chat') }}" aria-label="AI Chat" class="{{ 'active' if active == 'ai_chat' else '' }}">Chat</a>
+        <a href="{{ url_for('education') }}" aria-label="Education" class="{{ 'active' if active == 'education' else '' }}">Education</a>
+        <a href="{{ url_for('admin') }}" aria-label="Admin" class="{{ 'active' if active == 'admin' else '' }}">Admin</a>
+        <a href="{{ url_for('sources') }}" aria-label="Sources" class="{{ 'active' if active == 'sources' else '' }}">Sources</a>
+      </nav>
+
+      {% if active == 'ai_chat' %}
+      <section class="chat-history" aria-label="Chat sessions history">
+        <h3>Chat History</h3>
+        <ul id="chat-sessions-list" role="list"></ul>
+      </section>
+      {% endif %}
+    </aside>
+
     <main class="content-area" role="main" tabindex="-1">
       {% block content %}{% endblock %}
     </main>
+
+    {% if active == 'ai_chat' %}
+    <button id="new-chat-btn" aria-label="Start new chat" title="Start a new chat">+ New Chat</button>
+    {% endif %}
   </div>
 </body>
 </html>
